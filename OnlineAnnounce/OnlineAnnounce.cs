@@ -255,7 +255,7 @@ namespace OnlineAnnounce
                         {
                             args.Player.SendErrorMessage("This player does not have a greeting to change the color of!");
                         }
-                        else if (listofplayers[0].Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
+                        else if ((listofplayers[0].Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin")) && listofplayers[0] != args.Player)
                             args.Player.SendErrorMessage("You do not have permission to change this player's greeting color!");
                         else
                         {
