@@ -18,13 +18,12 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join."; } }
-        public override Version Version { get { return new Version(1, 3, 2, 1); } }
+        public override Version Version { get { return new Version(1, 3, 3, 1); } }
 
         private static IDbConnection db;
         private static Config config = new Config();
         public string configPath = Path.Combine(TShock.SavePath, "OnlineAnnounceConfig.json");
         private List<string> badwords = new List<string>();
-        Color bccolor = new Color();
 
         public OnlineAnnounce(Main game)
             : base(game)
@@ -247,6 +246,12 @@ namespace OnlineAnnounce
                 }
                 else if (args.Parameters[0].ToLower() == "setcolor")
                 {
+                    if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
+                    {
+                        args.Player.SendErrorMessage("You do not have permission to set greeting colors!");
+                        return;
+                    }
+
                     if (args.Parameters.Count != 5)
                         args.Player.SendErrorMessage("Invalid syntax: /greet setcolor <player> <r> <g> <b>");
                     else
