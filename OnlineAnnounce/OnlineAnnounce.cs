@@ -18,7 +18,7 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join."; } }
-        public override Version Version { get { return new Version(1, 2, 1, 0); } }
+        public override Version Version { get { return new Version(1, 3, 2, 1); } }
 
         private static IDbConnection db;
         private static Config config = new Config();
@@ -97,7 +97,10 @@ namespace OnlineAnnounce
                 if (args.Parameters[0].ToLower() == "read")
                 {
                     if (hasGreet(args.Player.UserID))
-                        args.Player.SendInfoMessage("Your greeting: " + getGreet(args.Player.UserID));
+                    {
+                        args.Player.SendInfoMessage("Your greeting: ");
+                        args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getRGB(args.Player.UserID));
+                    }
                     else
                         args.Player.SendInfoMessage("You do not have a greeting set. Use /greet set <greeting> to set a greeting.");
                 }
@@ -141,7 +144,10 @@ namespace OnlineAnnounce
                     else
                     {
                         if (setGreet(args.Player.UserID, args.Parameters[1], args.Player.Group.HasPermission("greet.admin") ? true : false))
-                            args.Player.SendSuccessMessage("Your greeting has been set to: " + getGreet(args.Player.UserID));
+                        {
+                            args.Player.SendSuccessMessage("Your greeting has been set to: ");
+                            args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getRGB(args.Player.UserID));
+                        }
                         else
                             args.Player.SendErrorMessage("Your greeting contained a forbidden word and may not be used as a greeting.");
                     }
@@ -177,7 +183,7 @@ namespace OnlineAnnounce
                     if (plr == null)
                         args.Player.SendErrorMessage("Invalid player.");
                     else
-                        args.Player.SendInfoMessage(plr.Name + "'s greeting: " + getGreet(plr.ID));
+                        args.Player.SendMessage("[" + plr.Name + "] " + getGreet(plr.ID), getRGB(plr.ID));
                 }
                 else if (args.Parameters[0].ToLower() == "lock")
                 {
@@ -231,7 +237,10 @@ namespace OnlineAnnounce
                         greet = greet.Replace("set ", "");
 
                         if (setGreet(args.Player.UserID, greet, args.Player.Group.HasPermission("greet.admin") ? true : false))
-                            args.Player.SendSuccessMessage("Your greeting has been set to: " + getGreet(args.Player.UserID));
+                        {
+                            args.Player.SendSuccessMessage("Your greeting has been set to:");
+                            args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getRGB(args.Player.UserID));
+                        }
                         else
                             args.Player.SendErrorMessage("Your greeting contained a forbidden word and may not be used as a greeting.");
                     }
@@ -306,7 +315,10 @@ namespace OnlineAnnounce
                         greet = greet.Replace(replace, "");
 
                         if (setGreet(listofplayers[0].UserID, greet, args.Player.Group.HasPermission("greet.admin") ? true : false))
-                            args.Player.SendSuccessMessage("{0}'s greeting was set to: {1}", listofplayers[0].Name, greet);
+                        {
+                            args.Player.SendSuccessMessage("{0}'s greeting was set to:");
+                            args.Player.SendMessage("[" + listofplayers[0].UserAccountName + "] " + getGreet(listofplayers[0].UserID), getRGB(listofplayers[0].UserID));
+                        }
                         else
                             args.Player.SendErrorMessage("Your greeting contained a forbidden word and cannot be used as a greeting.");
                     }
