@@ -36,9 +36,6 @@
     <Reference Include="MySql.Data">
       <HintPath>..\..\..\..\Desktop\TShock.1241\ServerPlugins\MySql.Data.dll</HintPath>
     </Reference>
-    <Reference Include="MySql.Web">
-      <HintPath>..\..\..\..\Desktop\TShock.1241\ServerPlugins\MySql.Web.dll</HintPath>
-    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\..\..\..\Desktop\TShock.1241\ServerPlugins\Newtonsoft.Json.dll</HintPath>
     </Reference>

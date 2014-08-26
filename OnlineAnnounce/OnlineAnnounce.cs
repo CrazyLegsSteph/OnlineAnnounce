@@ -9,6 +9,7 @@ using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
 using TShockAPI.DB;
+using TShockAPI.Hooks;
 
 namespace OnlineAnnounce
 {
@@ -18,12 +19,13 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join."; } }
-        public override Version Version { get { return new Version(1, 3, 3, 1); } }
+        public override Version Version { get { return new Version(1, 3, 3, 2); } }
 
         private static IDbConnection db;
         private static Config config = new Config();
         public string configPath = Path.Combine(TShock.SavePath, "OnlineAnnounceConfig.json");
         private List<string> badwords = new List<string>();
+        private List<int> greeted = new List<int>();
 
         public OnlineAnnounce(Main game)
             : base(game)
@@ -36,6 +38,8 @@ namespace OnlineAnnounce
         {
             ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
+            ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
+            PlayerHooks.PlayerPostLogin += OnPostLogin;
         }
 
         protected override void Dispose(bool Disposing)
@@ -44,6 +48,8 @@ namespace OnlineAnnounce
             {
                 ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
                 ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
+                ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
+                PlayerHooks.PlayerPostLogin -= OnPostLogin;
             }
             base.Dispose(Disposing);
         }
@@ -63,9 +69,25 @@ namespace OnlineAnnounce
         {
             if (hasGreet(TShock.Players[args.Who].UserID))
             {
-                TSPlayer.All.SendMessage("[" + TShock.Players[args.Who].Name + "] " + getGreet(TShock.Players[args.Who].UserID), getRGB(TShock.Players[args.Who].UserID));
-                TShock.Players[args.Who].SendMessage("[" + TShock.Players[args.Who].Name + "] " + getGreet(TShock.Players[args.Who].UserID), getRGB(TShock.Players[args.Who].UserID));
+                TSPlayer.All.SendMessage("[" + TShock.Players[args.Who].UserAccountName + "] " + getGreet(TShock.Players[args.Who].UserID), getRGB(TShock.Players[args.Who].UserID));
+                TShock.Players[args.Who].SendMessage("[" + TShock.Players[args.Who].UserAccountName + "] " + getGreet(TShock.Players[args.Who].UserID), getRGB(TShock.Players[args.Who].UserID));
+                greeted.Add(TShock.Players[args.Who].Index);
             }
+        }
+
+        private void OnPostLogin(PlayerPostLoginEventArgs args)
+        {
+            if (!greeted.Contains(args.Player.Index) && hasGreet(args.Player.UserID))
+            {
+                TSPlayer.All.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getRGB(args.Player.UserID));
+                greeted.Add(args.Player.Index);
+            }
+        }
+
+        private void OnLeave(LeaveEventArgs args)
+        {
+            if (greeted.Contains(args.Who))
+                greeted.Remove(args.Who);
         }
         #endregion
 
@@ -197,7 +219,7 @@ namespace OnlineAnnounce
                         args.Player.SendErrorMessage("No players found");
                     else if (plrs.Count > 1)
                     {
-                        string outputplrs = string.Join(", ", plrs.Select(p => p.Name));
+                        string outputplrs = string.Join(", ", plrs.Select(p => p.UserAccountName));
                         args.Player.SendErrorMessage("Multiple players found: " + outputplrs);
                     }
                     else if (!hasGreet(plrs[0].UserID))
@@ -205,7 +227,7 @@ namespace OnlineAnnounce
                     else
                     {
                         bool waslocked = lockGreet(plrs[0].UserID);
-                        args.Player.SendSuccessMessage("{0}'s greeting was {1}locked successfully.", plrs[0].Name, (waslocked ? "" : "un"));
+                        args.Player.SendSuccessMessage("{0}'s greeting was {1}locked successfully.", plrs[0].UserAccountName, (waslocked ? "" : "un"));
                     }
                 }
                 else
@@ -262,7 +284,7 @@ namespace OnlineAnnounce
                             args.Player.SendErrorMessage("Invalid player!");
                         else if (listofplayers.Count > 1)
                         {
-                            string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.Name));
+                            string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.UserAccountName));
                             args.Player.SendErrorMessage("Multiple players found: " + outputlistofplayers);
                         }
                         else if (!hasGreet(listofplayers[0].UserID))
@@ -305,7 +327,7 @@ namespace OnlineAnnounce
                         args.Player.SendErrorMessage("Invalid player!");
                     else if (listofplayers.Count > 1)
                     {
-                        string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.Name));
+                        string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.UserAccountName));
                         args.Player.SendErrorMessage("Multiple players found: " + outputlistofplayers);
                     }
                     else if (listofplayers[0].Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
@@ -522,7 +544,7 @@ namespace OnlineAnnounce
             try
             {
                 badwords.Clear();
-                foreach (string badword in config.badwords)
+                foreach (string badword in config.Badwords)
                     badwords.Add(badword);
             }
             catch

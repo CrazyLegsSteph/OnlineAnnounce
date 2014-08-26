@@ -10,13 +10,15 @@ namespace OnlineAnnounce
 {
     public class Config
     {
-        public string[] badwords =
+        private string[] badwords =
         {
             "admin",
             "mod",
             "staff",
             "owner"
         };
+
+        public string[] Badwords { get { return badwords; } set { badwords = value; } }
 
         public void Write(string path)
         {
