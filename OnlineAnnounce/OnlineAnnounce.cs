@@ -19,7 +19,7 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join."; } }
-        public override Version Version { get { return new Version(1, 3, 3, 2); } }
+        public override Version Version { get { return new Version(1, 3, 3, 3); } }
 
         private static IDbConnection db;
         private static Config config = new Config();
@@ -343,7 +343,7 @@ namespace OnlineAnnounce
 
                         if (setGreet(listofplayers[0].UserID, greet, args.Player.Group.HasPermission("greet.admin") ? true : false))
                         {
-                            args.Player.SendSuccessMessage("{0}'s greeting was set to:");
+                            args.Player.SendSuccessMessage("{0}'s greeting was set to:", listofplayers[0].Name);
                             args.Player.SendMessage("[" + listofplayers[0].UserAccountName + "] " + getGreet(listofplayers[0].UserID), getRGB(listofplayers[0].UserID));
                         }
                         else
