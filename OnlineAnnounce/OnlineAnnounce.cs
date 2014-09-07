@@ -67,7 +67,7 @@ namespace OnlineAnnounce
 
         private void OnGreet(GreetPlayerEventArgs args)
         {
-            if (hasGreet(TShock.Players[args.Who].UserID))
+            if (!greeted.Contains(TShock.Players[args.Who].Index) && hasGreet(TShock.Players[args.Who].UserID))
             {
                 TSPlayer.All.SendMessage("[" + TShock.Players[args.Who].UserAccountName + "] " + getGreet(TShock.Players[args.Who].UserID), getRGB(TShock.Players[args.Who].UserID));
                 TShock.Players[args.Who].SendMessage("[" + TShock.Players[args.Who].UserAccountName + "] " + getGreet(TShock.Players[args.Who].UserID), getRGB(TShock.Players[args.Who].UserID));
