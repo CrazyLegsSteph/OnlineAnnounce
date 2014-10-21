@@ -380,7 +380,7 @@ namespace OnlineAnnounce
                     if (hasLeave(args.Player.UserID))
                     {
                         args.Player.SendInfoMessage("Your leaving message: ");
-                        args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
+                        args.Player.SendMessage(getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
                     }
                     else
                         args.Player.SendInfoMessage("You do not have a leaving message set. Use /leave set <leaving message> to set a leaving message.");
@@ -421,7 +421,7 @@ namespace OnlineAnnounce
                     if (setLeave(args.Player.UserID, args.Parameters[1], args.Player.Group.HasPermission("leave.admin") ? true : false))
                     {
                         args.Player.SendSuccessMessage("Your leaving message has been set to: ");
-                        args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
+                        args.Player.SendMessage(getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
                     }
                     else
                         args.Player.SendErrorMessage("Your leaving message contained a forbidden word and may not be used as a leaving message.");
@@ -457,7 +457,7 @@ namespace OnlineAnnounce
                     if (plr == null)
                         args.Player.SendErrorMessage("Invalid player.");
                     else
-                        args.Player.SendMessage("[" + plr.Name + "] " + getLeave(plr.ID), getLeaveRGB(plr.ID));
+                        args.Player.SendMessage(getLeave(plr.ID), getLeaveRGB(plr.ID));
                 }
                 else
                 {
@@ -488,7 +488,7 @@ namespace OnlineAnnounce
                     if (setLeave(args.Player.UserID, leave, args.Player.Group.HasPermission("leave.admin") ? true : false))
                     {
                         args.Player.SendSuccessMessage("Your leaving message has been set to:");
-                        args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
+                        args.Player.SendMessage(getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
                     }
                     else
                         args.Player.SendErrorMessage("Your leaving message contained a forbidden word and may not be used as a leaving message.");
@@ -571,7 +571,7 @@ namespace OnlineAnnounce
                         if (setLeave(listofplayers[0].UserID, leave, args.Player.Group.HasPermission("leave.admin") ? true : false))
                         {
                             args.Player.SendSuccessMessage("{0}'s leaving message was set to:", listofplayers[0].Name);
-                            args.Player.SendMessage("[" + listofplayers[0].UserAccountName + "] " + getLeave(listofplayers[0].UserID), getLeaveRGB(listofplayers[0].UserID));
+                            args.Player.SendMessage(getLeave(listofplayers[0].UserID), getLeaveRGB(listofplayers[0].UserID));
                         }
                         else
                             args.Player.SendErrorMessage("Your leaving message contained a forbidden word and cannot be used as a leaving message.");
