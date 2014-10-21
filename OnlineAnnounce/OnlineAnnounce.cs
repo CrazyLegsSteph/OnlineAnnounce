@@ -63,8 +63,8 @@ namespace OnlineAnnounce
             DBConnect(); //Connect to (or create) the database table
             loadConfig();
 
-            Commands.ChatCommands.Add(new Command("greet.greet", UGreet, "greet"));
-            Commands.ChatCommands.Add(new Command("greet.leave", ULeave, "leave"));
+            Commands.ChatCommands.Add(new Command("greet.greet", UGreet, "greet") { AllowServer = false });
+            Commands.ChatCommands.Add(new Command("greet.leave", ULeave, "leave") { AllowServer = false });
             Commands.ChatCommands.Add(new Command("greet.reload", UReload, "greetreload"));
         }
 
@@ -295,7 +295,7 @@ namespace OnlineAnnounce
                 }
                 else if (args.Parameters[0].ToLower() == "setother")
                 {
-                    if (!args.Player.Group.HasPermission("greet.mod") || !args.Player.Group.HasPermission("greet.admin"))
+                    if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
                     {
                         args.Player.SendErrorMessage("You do not have permission to set other greetings.");
                         return;
@@ -542,7 +542,7 @@ namespace OnlineAnnounce
                 }
                 else if (args.Parameters[0].ToLower() == "setother")
                 {
-                    if (!args.Player.Group.HasPermission("leave.mod") || !args.Player.Group.HasPermission("leave.admin"))
+                    if (!args.Player.Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
                     {
                         args.Player.SendErrorMessage("You do not have permission to set other leaving message.");
                         return;
