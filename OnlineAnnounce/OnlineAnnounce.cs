@@ -5,8 +5,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Timers;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -15,6 +14,30 @@ using TShockAPI.Hooks;
 
 namespace OnlineAnnounce
 {
+    public class Joiners
+    {
+        public TSPlayer player;
+        public Timer announce;
+        public bool hasgreeted;
+
+        public Joiners(TSPlayer tsp)
+        {
+            player = tsp;
+            announce = new Timer() { AutoReset = false, Enabled = false, Interval = 1000 };
+            announce.Elapsed += announce_Elapsed;
+            hasgreeted = false;
+
+            if (tsp.IsLoggedIn && OnlineAnnounce.hasGreet(player.UserID))
+                announce.Enabled = true;
+        }
+
+        void announce_Elapsed(object sender, ElapsedEventArgs e)
+        {
+                TSPlayer.All.SendMessage("[" + player.UserAccountName + "] " + OnlineAnnounce.getGreet(player.UserID), OnlineAnnounce.getGreetRGB(player.UserID));
+                hasgreeted = true;
+        }
+    }
+
     [ApiVersion(1, 16)]
     public class OnlineAnnounce : TerrariaPlugin
     {
@@ -27,12 +50,12 @@ namespace OnlineAnnounce
         private static Config config = new Config();
         public string configPath = Path.Combine(TShock.SavePath, "OnlineAnnounceConfig.json");
         private List<string> badwords = new List<string>();
-        private List<int> greeted = new List<int>();
+        Joiners[] joiners;
 
         public OnlineAnnounce(Main game)
             : base(game)
         {
-            base.Order = 1;
+            base.Order = -1;
         }
 
         #region Initialize/Dispose
@@ -60,11 +83,12 @@ namespace OnlineAnnounce
         #region Hooks
         private void OnInitialize(EventArgs args)
         {
-            DBConnect(); //Connect to (or create) the database table
+            DBConnect();
             loadConfig();
+            joiners = new Joiners[255];
 
-            Commands.ChatCommands.Add(new Command("greet.greet", UGreet, "greet") { AllowServer = false });
-            Commands.ChatCommands.Add(new Command("greet.leave", ULeave, "leave") { AllowServer = false });
+            Commands.ChatCommands.Add(new Command("greet.greet", UGreet, "greet"));
+            Commands.ChatCommands.Add(new Command("greet.leave", ULeave, "leave"));
             Commands.ChatCommands.Add(new Command("greet.reload", UReload, "greetreload"));
         }
 
@@ -73,21 +97,13 @@ namespace OnlineAnnounce
             if (TShock.Players[args.Who] == null)
                 return;
 
-            if (!greeted.Contains(TShock.Players[args.Who].Index) && hasGreet(TShock.Players[args.Who].UserID))
-            {
-                TSPlayer.All.SendMessage("[" + TShock.Players[args.Who].UserAccountName + "] " + getGreet(TShock.Players[args.Who].UserID), getGreetRGB(TShock.Players[args.Who].UserID));
-                TShock.Players[args.Who].SendMessage("[" + TShock.Players[args.Who].UserAccountName + "] " + getGreet(TShock.Players[args.Who].UserID), getGreetRGB(TShock.Players[args.Who].UserID));
-                greeted.Add(TShock.Players[args.Who].Index);
-            }
+            joiners[args.Who] = new Joiners(TShock.Players[args.Who]);
         }
-
+        
         private void OnPostLogin(PlayerPostLoginEventArgs args)
         {
-            if (!greeted.Contains(args.Player.Index) && hasGreet(args.Player.UserID))
-            {
-                TSPlayer.All.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getGreetRGB(args.Player.UserID));
-                greeted.Add(args.Player.Index);
-            }
+            if (!joiners[args.Player.Index].hasgreeted && hasGreet(args.Player.UserID))
+                joiners[args.Player.Index].announce.Enabled = true;
         }
 
         private void OnLeave(LeaveEventArgs args)
@@ -95,8 +111,7 @@ namespace OnlineAnnounce
             if (TShock.Players[args.Who] == null)
                 return;
 
-            if (greeted.Contains(args.Who))
-                greeted.Remove(args.Who);
+            joiners[args.Who] = null;
 
             if (hasLeave(TShock.Players[args.Who].UserID))
             {
@@ -171,6 +186,12 @@ namespace OnlineAnnounce
             {
                 if (args.Parameters[0].ToLower() == "set")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set your greeting from here.");
+                        return;
+                    }
+
                     if (setGreet(args.Player.UserID, args.Parameters[1], args.Player.Group.HasPermission("greet.admin") ? true : false))
                     {
                         args.Player.SendSuccessMessage("Your greeting has been set to: ");
@@ -235,6 +256,12 @@ namespace OnlineAnnounce
             {
                 if (args.Parameters[0].ToLower() == "set")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set your greeting from here.");
+                        return;
+                    }
+
                     string greet = string.Join(" ", args.Parameters);
                     greet = greet.Replace("set ", "");
 
@@ -248,6 +275,12 @@ namespace OnlineAnnounce
                 }
                 else if (args.Parameters[0].ToLower() == "setcolor")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set your greeting color from here.");
+                        return;
+                    }
+
                     if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
                     {
                         args.Player.SendErrorMessage("You do not have permission to set greeting colors!");
@@ -295,6 +328,12 @@ namespace OnlineAnnounce
                 }
                 else if (args.Parameters[0].ToLower() == "setother")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set a greeting from here.");
+                        return;
+                    }
+
                     if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
                     {
                         args.Player.SendErrorMessage("You do not have permission to set other greetings.");
@@ -418,6 +457,12 @@ namespace OnlineAnnounce
             {
                 if (args.Parameters[0].ToLower() == "set")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set your leaving message from here.");
+                        return;
+                    }
+
                     if (setLeave(args.Player.UserID, args.Parameters[1], args.Player.Group.HasPermission("leave.admin") ? true : false))
                     {
                         args.Player.SendSuccessMessage("Your leaving message has been set to: ");
@@ -482,6 +527,12 @@ namespace OnlineAnnounce
             {
                 if (args.Parameters[0].ToLower() == "set")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set your leaving message from here.");
+                        return;
+                    }
+
                     string leave = string.Join(" ", args.Parameters);
                     leave = leave.Replace("set ", "");
 
@@ -495,6 +546,12 @@ namespace OnlineAnnounce
                 }
                 else if (args.Parameters[0].ToLower() == "setcolor")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set your leaving message color from here.");
+                        return;
+                    }
+
                     if (!args.Player.Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
                     {
                         args.Player.SendErrorMessage("You do not have permission to set leaving message colors!");
@@ -542,6 +599,12 @@ namespace OnlineAnnounce
                 }
                 else if (args.Parameters[0].ToLower() == "setother")
                 {
+                    if (!args.Player.RealPlayer)
+                    {
+                        args.Player.SendErrorMessage("You may not set a leaving message from here.");
+                        return;
+                    }
+
                     if (!args.Player.Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
                     {
                         args.Player.SendErrorMessage("You do not have permission to set other leaving message.");
@@ -650,7 +713,7 @@ namespace OnlineAnnounce
         }
 
         #region GreetCommands
-        private string getGreet(int userid)
+        public static string getGreet(int userid)
         {
             if (hasGreet(userid))
             {
@@ -666,7 +729,7 @@ namespace OnlineAnnounce
                 return null; //This should never happen
         }
 
-        private Color getGreetRGB(int userid)
+        public static Color getGreetRGB(int userid)
         {
             byte[] uacolor = { (byte)127, (byte)255, (byte)212 };
 
@@ -688,7 +751,7 @@ namespace OnlineAnnounce
                 return new Color(uacolor[0], uacolor[1], uacolor[2]); //This should never happen
         }
 
-        private bool hasGreet(int userid)
+        public static bool hasGreet(int userid)
         {
             using (QueryResult reader = db.QueryReader(@"SELECT * FROM Greetings WHERE UserID=@0", userid))
             {
