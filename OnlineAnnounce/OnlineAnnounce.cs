@@ -27,7 +27,7 @@ namespace OnlineAnnounce
             announce.Elapsed += announce_Elapsed;
             hasgreeted = false;
 
-            if (tsp.IsLoggedIn && OnlineAnnounce.hasGreet(player.UserID))
+            if (tsp.IsLoggedIn && OnlineAnnounce.hasGreet(player.UserID) && !hasgreeted)
                 announce.Enabled = true;
         }
 
@@ -102,6 +102,8 @@ namespace OnlineAnnounce
         
         private void OnPostLogin(PlayerPostLoginEventArgs args)
         {
+            if (TShock.Players[args.Player.Index] == null)
+                return;
             if (!joiners[args.Player.Index].hasgreeted && hasGreet(args.Player.UserID))
                 joiners[args.Player.Index].announce.Enabled = true;
         }
