@@ -28,13 +28,15 @@ namespace OnlineAnnounce
             hasgreeted = false;
 
             if (tsp.IsLoggedIn && OnlineAnnounce.hasGreet(player.UserID) && !hasgreeted)
+            {
                 announce.Enabled = true;
+                hasgreeted = true;
+            }
         }
 
         void announce_Elapsed(object sender, ElapsedEventArgs e)
         {
                 TSPlayer.All.SendMessage("[" + player.UserAccountName + "] " + OnlineAnnounce.getGreet(player.UserID), OnlineAnnounce.getGreetRGB(player.UserID));
-                hasgreeted = true;
         }
     }
 
@@ -44,13 +46,13 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(2, 1, 1, 1); } }
+        public override Version Version { get { return new Version(3, 1, 1, 1); } }
 
         private static IDbConnection db;
         private static Config config = new Config();
         public string configPath = Path.Combine(TShock.SavePath, "OnlineAnnounceConfig.json");
         private List<string> badwords = new List<string>();
-        Joiners[] joiners;
+        private List<Joiners> joined = new List<Joiners>();
 
         public OnlineAnnounce(Main game)
             : base(game)
@@ -62,7 +64,6 @@ namespace OnlineAnnounce
         public override void Initialize()
         {
             ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
-            ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
             PlayerHooks.PlayerPostLogin += OnPostLogin;
         }
@@ -72,7 +73,6 @@ namespace OnlineAnnounce
             if (Disposing)
             {
                 ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
-                ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
                 PlayerHooks.PlayerPostLogin -= OnPostLogin;
             }
@@ -85,40 +85,43 @@ namespace OnlineAnnounce
         {
             DBConnect();
             loadConfig();
-            joiners = new Joiners[255];
 
             Commands.ChatCommands.Add(new Command("greet.greet", UGreet, "greet"));
             Commands.ChatCommands.Add(new Command("greet.leave", ULeave, "leave"));
             Commands.ChatCommands.Add(new Command("greet.reload", UReload, "greetreload"));
         }
 
-        private void OnGreet(GreetPlayerEventArgs args)
-        {
-            if (TShock.Players[args.Who] == null)
-                return;
-
-            joiners[args.Who] = new Joiners(TShock.Players[args.Who]);
-        }
-        
         private void OnPostLogin(PlayerPostLoginEventArgs args)
         {
             if (TShock.Players[args.Player.Index] == null)
                 return;
-            if (!joiners[args.Player.Index].hasgreeted && hasGreet(args.Player.UserID))
-                joiners[args.Player.Index].announce.Enabled = true;
+
+            bool c = false;
+
+            foreach (Joiners j in joined)
+                if (j.player.UserID == args.Player.UserID)
+                {
+                    c = true;
+                    if (hasGreet(j.player.UserID) && !j.hasgreeted)
+                    {
+                        j.announce.Enabled = true;
+                        j.hasgreeted = true;
+                        return;
+                    }
+                }
+
+            if (!c)
+            {
+                joined.Add(new Joiners(args.Player));
+            }
         }
 
         private void OnLeave(LeaveEventArgs args)
         {
-            if (TShock.Players[args.Who] == null)
-                return;
+            for (int i = 0; i < joined.Count; i++)
+                if (joined[i].player.Index == args.Who)
+                    joined.RemoveAt(i);
 
-            joiners[args.Who] = null;
-
-            if (hasLeave(TShock.Players[args.Who].UserID))
-            {
-                TSPlayer.All.SendMessage(getLeave(TShock.Players[args.Who].UserID), getLeaveRGB(TShock.Players[args.Who].UserID));
-            }
         }
         #endregion
 
