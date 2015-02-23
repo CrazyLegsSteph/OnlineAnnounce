@@ -120,7 +120,10 @@ namespace OnlineAnnounce
         {
             for (int i = 0; i < joined.Count; i++)
                 if (joined[i].player.Index == args.Who)
+                {
                     joined.RemoveAt(i);
+                    break;
+                }
 
         }
         #endregion
@@ -302,8 +305,7 @@ namespace OnlineAnnounce
                             args.Player.SendErrorMessage("Invalid player!");
                         else if (listofplayers.Count > 1)
                         {
-                            string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.UserAccountName));
-                            args.Player.SendErrorMessage("Multiple players found: " + outputlistofplayers);
+                            TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
                         }
                         else if (!hasGreet(listofplayers[0].UserID))
                         {
@@ -351,8 +353,7 @@ namespace OnlineAnnounce
                         args.Player.SendErrorMessage("Invalid player!");
                     else if (listofplayers.Count > 1)
                     {
-                        string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.UserAccountName));
-                        args.Player.SendErrorMessage("Multiple players found: " + outputlistofplayers);
+                        TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
                     }
                     else if (listofplayers[0].Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
                     {
@@ -573,8 +574,7 @@ namespace OnlineAnnounce
                             args.Player.SendErrorMessage("Invalid player!");
                         else if (listofplayers.Count > 1)
                         {
-                            string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.UserAccountName));
-                            args.Player.SendErrorMessage("Multiple players found: " + outputlistofplayers);
+                            TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
                         }
                         else if (!hasLeave(listofplayers[0].UserID))
                         {
@@ -622,8 +622,7 @@ namespace OnlineAnnounce
                         args.Player.SendErrorMessage("Invalid player!");
                     else if (listofplayers.Count > 1)
                     {
-                        string outputlistofplayers = string.Join(", ", listofplayers.Select(p => p.UserAccountName));
-                        args.Player.SendErrorMessage("Multiple players found: " + outputlistofplayers);
+                        TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
                     }
                     else if (listofplayers[0].Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
                     {
@@ -702,14 +701,14 @@ namespace OnlineAnnounce
 
             SqlTableCreator sqlcreator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite ? (IQueryBuilder)new SqliteQueryCreator() : new MysqlQueryCreator());
 
-            sqlcreator.EnsureExists(new SqlTable("Greetings",
+            sqlcreator.EnsureTableStructure(new SqlTable("Greetings",
                 new SqlColumn("UserID", MySqlDbType.Int32) { Primary = true, Unique = true, Length = 4 },
                 new SqlColumn("Greeting", MySqlDbType.Text) { Length = 50 },
                 new SqlColumn("R", MySqlDbType.Int32) { Length = 3 },
                 new SqlColumn("G", MySqlDbType.Int32) { Length = 3 },
                 new SqlColumn("B", MySqlDbType.Int32) { Length = 3 }));
 
-            sqlcreator.EnsureExists(new SqlTable("Leavings",
+            sqlcreator.EnsureTableStructure(new SqlTable("Leavings",
                 new SqlColumn("UserID", MySqlDbType.Int32) { Primary = true, Unique = true, Length = 4 },
                 new SqlColumn("Leaving", MySqlDbType.Text) { Length = 50 },
                 new SqlColumn("R", MySqlDbType.Int32) { Length = 3 },
