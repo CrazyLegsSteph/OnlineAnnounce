@@ -10,7 +10,7 @@ namespace OnlineAnnounce
 {
     public class Config
     {
-        private string[] badwords =
+        public List<string> badwords = new List<string>()
         {
             "admin",
             "mod",
@@ -18,7 +18,9 @@ namespace OnlineAnnounce
             "owner"
         };
 
-        public string[] Badwords { get { return badwords; } set { badwords = value; } }
+        public int defaultR = 127;
+        public int defaultG = 255;
+        public int defaultB = 212;
 
         public void Write(string path)
         {

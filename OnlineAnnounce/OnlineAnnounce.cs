@@ -14,29 +14,61 @@ using TShockAPI.Hooks;
 
 namespace OnlineAnnounce
 {
-    public class Joiners
+    public class OAPlayer
     {
-        public TSPlayer player;
-        public Timer announce;
-        public bool hasgreeted;
+        public string greet;
+        public string leave;
+        public Color greetRGB;
+        public Color leaveRGB;
 
-        public Joiners(TSPlayer tsp)
+        public string userAccountName;
+        public int userID;
+        public bool pastGreet;
+        public bool hasGreeted;
+
+        public OAPlayer(bool _isGreet, string _announcement, string _userAccountName, int _userID)
         {
-            player = tsp;
-            announce = new Timer() { AutoReset = false, Enabled = false, Interval = 1000 };
-            announce.Elapsed += announce_Elapsed;
-            hasgreeted = false;
-
-            if (tsp.IsLoggedIn && OnlineAnnounce.hasGreet(player.UserID) && !hasgreeted)
+            if (_isGreet)
             {
-                announce.Enabled = true;
-                hasgreeted = true;
+                greet = _announcement;
+                leave = null;
             }
+            else
+            {
+                greet = null;
+                leave = _announcement;
+            }
+
+            userAccountName = _userAccountName;
+            userID = _userID;
+            greetRGB = new Color(OnlineAnnounce.config.defaultR, OnlineAnnounce.config.defaultG, OnlineAnnounce.config.defaultB);
+            leaveRGB = new Color(OnlineAnnounce.config.defaultR, OnlineAnnounce.config.defaultG, OnlineAnnounce.config.defaultB);
+            pastGreet = false;
+            hasGreeted = false;
         }
 
-        void announce_Elapsed(object sender, ElapsedEventArgs e)
+        public OAPlayer(string _greet, string _leave, string _userAccountName, int _userID, Color _greetRGB, Color _leaveRGB)
         {
-                TSPlayer.All.SendMessage("[" + player.UserAccountName + "] " + OnlineAnnounce.getGreet(player.UserID), OnlineAnnounce.getGreetRGB(player.UserID));
+            greet = _greet;
+            leave = _leave;
+            userAccountName = _userAccountName;
+            userID = _userID;
+            greetRGB = _greetRGB;
+            leaveRGB = _leaveRGB;
+            pastGreet = false;
+            hasGreeted = false;
+        }
+
+        public void Greet(int index)
+        {
+            TSPlayer.All.SendMessage(string.Format("[{0}] {1}", userAccountName, greet), greetRGB);
+            TShock.Players[index].SendMessage(string.Format("[{0}] {1}", userAccountName, greet), greetRGB);
+            hasGreeted = true;
+        }
+
+        public void Leave()
+        {
+            TSPlayer.All.SendMessage(string.Format("[{0}] {1}", userAccountName, leave), leaveRGB);
         }
     }
 
@@ -46,13 +78,13 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(3, 3, 1, 1); } }
+        public override Version Version { get { return new Version(4, 3, 1, 2); } }
 
         private static IDbConnection db;
-        private static Config config = new Config();
+        public static Config config = new Config();
         public string configPath = Path.Combine(TShock.SavePath, "OnlineAnnounceConfig.json");
-        private List<string> badwords = new List<string>();
-        private List<Joiners> joined = new List<Joiners>();
+        private Dictionary<int, OAPlayer> players = new Dictionary<int, OAPlayer>();
+        public static Dictionary<int, int> indexid = new Dictionary<int, int>();
 
         public OnlineAnnounce(Main game)
             : base(game)
@@ -65,6 +97,8 @@ namespace OnlineAnnounce
         {
             ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
+            ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
+            GeneralHooks.ReloadEvent += OnReload;
             PlayerHooks.PlayerPostLogin += OnPostLogin;
         }
 
@@ -74,6 +108,8 @@ namespace OnlineAnnounce
             {
                 ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
+                ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
+                GeneralHooks.ReloadEvent -= OnReload;
                 PlayerHooks.PlayerPostLogin -= OnPostLogin;
             }
             base.Dispose(Disposing);
@@ -85,595 +121,377 @@ namespace OnlineAnnounce
         {
             DBConnect();
             loadConfig();
+            readDatabase();
 
-            Commands.ChatCommands.Add(new Command("greet.greet", UGreet, "greet"));
-            Commands.ChatCommands.Add(new Command("greet.leave", ULeave, "leave"));
-            Commands.ChatCommands.Add(new Command("greet.reload", UReload, "greetreload"));
+            Commands.ChatCommands.Add(new Command("oa.greet", UGreet, "greet"));
+            Commands.ChatCommands.Add(new Command("oa.leave", ULeave, "leave"));
+            Commands.ChatCommands.Add(new Command("oa.purge", UPurge, "purgeannouncements", "pa"));
+        }
+
+        private void OnGreet(GreetPlayerEventArgs args)
+        {
+            int id = TShock.Players[args.Who].UserID;
+
+            if (!indexid.ContainsKey(args.Who))
+                indexid.Add(args.Who, id);
+
+            if (players.ContainsKey(id))
+            {
+                if (!players[id].hasGreeted)
+                {
+                    players[id].Greet(args.Who);
+                }
+
+                players[id].pastGreet = true;
+            }
         }
 
         private void OnPostLogin(PlayerPostLoginEventArgs args)
         {
-            if (TShock.Players[args.Player.Index] == null)
-                return;
+            int id = args.Player.UserID;
 
-            bool c = false;
+            if (!indexid.ContainsKey(args.Player.Index))
+                indexid.Add(args.Player.Index, args.Player.UserID);
+            else
+                indexid[args.Player.Index] = id;
 
-            foreach (Joiners j in joined)
-                if (j.player.UserID == args.Player.UserID)
-                {
-                    c = true;
-                    if (hasGreet(j.player.UserID) && !j.hasgreeted)
-                    {
-                        j.announce.Enabled = true;
-                        j.hasgreeted = true;
-                        return;
-                    }
-                }
-
-            if (!c)
+            if (players.ContainsKey(id))
             {
-                joined.Add(new Joiners(args.Player));
+                if (players[id].pastGreet)
+                {
+                    players[id].Greet(args.Player.Index);
+                }
             }
+        }
+
+        private void OnReload(ReloadEventArgs args)
+        {
+            loadConfig();
+            readDatabase();
         }
 
         private void OnLeave(LeaveEventArgs args)
         {
-            for (int i = 0; i < joined.Count; i++)
-                if (joined[i].player.Index == args.Who)
-                {
-                    joined.RemoveAt(i);
-                    break;
-                }
+            int id = -1;
 
+            if (indexid.ContainsKey(args.Who))
+                id = indexid[args.Who];
+
+            if (id != -1)
+            {
+                players[id].Leave();
+
+                players[id].pastGreet = false;
+                players[id].hasGreeted = false;
+            }
+
+            indexid.Remove(args.Who);
         }
         #endregion
 
         #region Greet commands
         private void UGreet(CommandArgs args)
         {
-            if (args.Parameters.Count == 0)
+            if (args.Parameters.Count > 2 && args.Parameters[0].ToLower() == "set")
             {
-                args.Player.SendErrorMessage("Invalid syntax:");
-                args.Player.SendErrorMessage("/greet set <greeting>");
-                if (!args.Player.Group.HasPermission("greet.mod"))
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
+
+                if (player == null)
                 {
-                    args.Player.SendErrorMessage("/greet read");
-                    args.Player.SendErrorMessage("/greet remove");
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
                 }
-                else
+
+                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
                 {
-                    args.Player.SendErrorMessage("/greet setcolor <player> <r> <g> <b>");
-                    args.Player.SendErrorMessage("/greet read");
-                    args.Player.SendErrorMessage("/greet remove [player]");
-                    args.Player.SendErrorMessage("/greet setother <player> <greeting>");
-                    args.Player.SendErrorMessage("/greet readother <player>");
+                    args.Player.SendErrorMessage("You do not have permission to change other players' greeting announcement.");
+                    return;
                 }
+
+                List<string> param = args.Parameters;
+
+                param.RemoveAt(0); //Remove 'set'
+                param.RemoveAt(0); //Remove player name
+
+                string announcement = string.Join(" ", param.Select(p => p));
+
+                foreach (string badword in config.badwords)
+                {
+                    if (announcement.Contains(badword) && !args.Player.Group.HasPermission("oa.mod"))
+                    {
+                        args.Player.SendErrorMessage("You may not use the phrase {0} in this greeting announcement!", badword);
+                        return;
+                    }
+                }
+
+                setAnnounce(true, player.ID, player.Name, announcement);
+                args.Player.SendSuccessMessage("{0} greeting announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].greet), players[player.ID].greetRGB);
+
+                return;
             }
-            else if (args.Parameters.Count == 1)
+
+            if (args.Parameters.Count == 2 && args.Parameters[0].ToLower() == "remove")
             {
-                if (args.Parameters[0].ToLower() == "read")
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
+
+                if (player == null)
                 {
-                    if (hasGreet(args.Player.UserID))
-                    {
-                        args.Player.SendInfoMessage("Your greeting: ");
-                        args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getGreetRGB(args.Player.UserID));
-                    }
-                    else
-                        args.Player.SendInfoMessage("You do not have a greeting set. Use /greet set <greeting> to set a greeting.");
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
                 }
-                else if (args.Parameters[0].ToLower() == "remove")
+
+                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
                 {
-                    if (hasGreet(args.Player.UserID))
-                    {
-                        removeGreet(args.Player.UserID);
-                        args.Player.SendSuccessMessage("Your greeting was removed successfully.");
-                    }
-                    else
-                        args.Player.SendErrorMessage("You do not have a greeting to remove.");
+                    args.Player.SendErrorMessage("You do not have permission to remove other players' greeting announcement.");
+                    return;
                 }
-                else
+
+                if (!players.ContainsKey(player.ID) || players[player.ID].greet == null)
                 {
-                    args.Player.SendErrorMessage("Invalid syntax:");
-                    args.Player.SendErrorMessage("/greet set <greeting>");
-                    if (!args.Player.Group.HasPermission("greet.mod"))
-                    {
-                        args.Player.SendErrorMessage("/greet read");
-                        args.Player.SendErrorMessage("/greet remove");
-                    }
-                    else
-                    {
-                        args.Player.SendErrorMessage("/greet setcolor <player> <r> <g> <b>");
-                        args.Player.SendErrorMessage("/greet read");
-                        args.Player.SendErrorMessage("/greet remove [player]");
-                        args.Player.SendErrorMessage("/greet setother <player> <greeting>");
-                        args.Player.SendErrorMessage("/greet readother <player>");
-                    }
+                    args.Player.SendErrorMessage("This player doesn't have a greeting announcement to remove!");
+                    return;
                 }
+
+                removeAnnounce(true, player.ID);
+                args.Player.SendSuccessMessage("{0} greeting announcement has been removed.", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+
+                return;
             }
-            else if (args.Parameters.Count == 2)
+
+            if (args.Parameters.Count > 2 && args.Parameters[0].ToLower() == "color")
             {
-                if (args.Parameters[0].ToLower() == "set")
+                if (!args.Player.Group.HasPermission("oa.mod"))
                 {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set your greeting from here.");
-                        return;
-                    }
+                    args.Player.SendErrorMessage("You do not have permission to change greeting announcement colors.");
+                    return;
+                }
 
-                    if (setGreet(args.Player.UserID, args.Parameters[1], args.Player.Group.HasPermission("greet.admin") ? true : false))
-                    {
-                        args.Player.SendSuccessMessage("Your greeting has been set to: ");
-                        args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getGreetRGB(args.Player.UserID));
-                    }
-                    else
-                        args.Player.SendErrorMessage("Your greeting contained a forbidden word and may not be used as a greeting.");
-                }
-                else if (args.Parameters[0].ToLower() == "remove")
-                {
-                    if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to remove other greetings.");
-                        return;
-                    }
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
 
-                    User plr = TShock.Users.GetUserByName(args.Parameters[1]);
-                    if (plr == null)
-                        args.Player.SendErrorMessage("Invalid player.");
-                    else if (!hasGreet(plr.ID))
-                        args.Player.SendErrorMessage("This player does not have a greeting to remove.");
-                    else
-                    {
-                        removeGreet(plr.ID);
-                        args.Player.SendSuccessMessage("{0}'s greeting was removed successfully.", plr.Name);
-                    }
-                }
-                else if (args.Parameters[0].ToLower() == "readother")
+                if (player == null)
                 {
-                    if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to read other greetings.");
-                        return;
-                    }
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
+                }
 
-                    User plr = TShock.Users.GetUserByName(args.Parameters[1]);
-                    if (plr == null)
-                        args.Player.SendErrorMessage("Invalid player.");
-                    else
-                        args.Player.SendMessage("[" + plr.Name + "] " + getGreet(plr.ID), getGreetRGB(plr.ID));
-                }
-                else
+                if (!players.ContainsKey(player.ID) || players[player.ID].greet == null)
                 {
-                    args.Player.SendErrorMessage("Invalid syntax:");
-                    args.Player.SendErrorMessage("/greet set <greeting>");
-                    if (!args.Player.Group.HasPermission("greet.mod"))
-                    {
-                        args.Player.SendErrorMessage("/greet read");
-                        args.Player.SendErrorMessage("/greet remove");
-                    }
-                    else
-                    {
-                        args.Player.SendErrorMessage("/greet setcolor <player> <r> <g> <b>");
-                        args.Player.SendErrorMessage("/greet read");
-                        args.Player.SendErrorMessage("/greet remove [player]");
-                        args.Player.SendErrorMessage("/greet setother <player> <greeting>");
-                        args.Player.SendErrorMessage("/greet readother <player>");
-                    }
+                    args.Player.SendErrorMessage("This player doesn't have a greeting announcement to modify the color of!");
+                    return;
                 }
+
+                Color color;
+
+                List<string> param = args.Parameters;
+
+                param.RemoveAt(0); //Remove 'color'
+                param.RemoveAt(0); //Remove player name
+
+                if (!tryParseColor(param, out color))
+                {
+                    args.Player.SendErrorMessage("Invalid color syntax: {0}greet color <player> rrr,ggg,bbb OR {0}greet color <player> rrr ggg bbb", TShock.Config.CommandSpecifier);
+                    return;
+                }
+
+                setColor(true, player.ID, color);
+                args.Player.SendSuccessMessage("{0} greeting announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].greet), players[player.ID].greetRGB);
+
+                return;
             }
-            else //if (args.Parameters.Count > 2)
-            {
-                if (args.Parameters[0].ToLower() == "set")
-                {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set your greeting from here.");
-                        return;
-                    }
 
-                    string greet = string.Join(" ", args.Parameters);
-                    greet = greet.Replace("set ", "");
-
-                    if (setGreet(args.Player.UserID, greet, args.Player.Group.HasPermission("greet.admin") ? true : false))
-                    {
-                        args.Player.SendSuccessMessage("Your greeting has been set to:");
-                        args.Player.SendMessage("[" + args.Player.UserAccountName + "] " + getGreet(args.Player.UserID), getGreetRGB(args.Player.UserID));
-                    }
-                    else
-                        args.Player.SendErrorMessage("Your greeting contained a forbidden word and may not be used as a greeting.");
-                }
-                else if (args.Parameters[0].ToLower() == "setcolor")
-                {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set your greeting color from here.");
-                        return;
-                    }
-
-                    if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to set greeting colors!");
-                        return;
-                    }
-
-                    if (args.Parameters.Count != 5)
-                        args.Player.SendErrorMessage("Invalid syntax: /greet setcolor <player> <r> <g> <b>");
-                    else
-                    {
-                        string plr = args.Parameters[1];
-                        List<TSPlayer> listofplayers = TShock.Utils.FindPlayer(plr);
-                        if (listofplayers.Count < 1)
-                            args.Player.SendErrorMessage("Invalid player!");
-                        else if (listofplayers.Count > 1)
-                        {
-                            TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
-                        }
-                        else if (!hasGreet(listofplayers[0].UserID))
-                        {
-                            args.Player.SendErrorMessage("This player does not have a greeting to change the color of!");
-                        }
-                        else if ((listofplayers[0].Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin")) && listofplayers[0] != args.Player)
-                            args.Player.SendErrorMessage("You do not have permission to change this player's greeting color!");
-                        else
-                        {
-                            int[] rgbcolor = { 127, 255, 212 };
-                            bool[] isParsed = { false, false, false };
-
-                            isParsed[0] = int.TryParse(args.Parameters[2], out rgbcolor[0]);
-                            isParsed[1] = int.TryParse(args.Parameters[3], out rgbcolor[1]);
-                            isParsed[2] = int.TryParse(args.Parameters[4], out rgbcolor[2]);
-
-                            if (isParsed.Contains(false))
-                            {
-                                args.Player.SendErrorMessage("Invalid RGB colors!");
-                                return;
-                            }
-
-                            setGreetRGB(listofplayers[0].UserID, rgbcolor);
-                            args.Player.SendSuccessMessage("Greeting color set successfully.");
-                        }
-                    }
-                }
-                else if (args.Parameters[0].ToLower() == "setother")
-                {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set a greeting from here.");
-                        return;
-                    }
-
-                    if (!args.Player.Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to set other greetings.");
-                        return;
-                    }
-
-                    string plr = args.Parameters[1];
-                    List<TSPlayer> listofplayers = TShock.Utils.FindPlayer(plr);
-                    if (listofplayers.Count < 1)
-                        args.Player.SendErrorMessage("Invalid player!");
-                    else if (listofplayers.Count > 1)
-                    {
-                        TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
-                    }
-                    else if (listofplayers[0].Group.HasPermission("greet.mod") && !args.Player.Group.HasPermission("greet.admin"))
-                    {
-                        args.Player.SendErrorMessage("You cannot edit this person's greeting!");
-                        return;
-                    }
-                    else
-                    {
-                        string greet = string.Join(" ", args.Parameters);
-                        string replace = "setother " + args.Parameters[1] + " ";
-                        greet = greet.Replace(replace, "");
-
-                        if (setGreet(listofplayers[0].UserID, greet, args.Player.Group.HasPermission("greet.admin") ? true : false))
-                        {
-                            args.Player.SendSuccessMessage("{0}'s greeting was set to:", listofplayers[0].Name);
-                            args.Player.SendMessage("[" + listofplayers[0].UserAccountName + "] " + getGreet(listofplayers[0].UserID), getGreetRGB(listofplayers[0].UserID));
-                        }
-                        else
-                            args.Player.SendErrorMessage("Your greeting contained a forbidden word and cannot be used as a greeting.");
-                    }
-                }
-                else
-                {
-                    args.Player.SendErrorMessage("Invalid syntax:");
-                    args.Player.SendErrorMessage("/greet set <greeting>");
-                    if (!args.Player.Group.HasPermission("greet.mod"))
-                    {
-                        args.Player.SendErrorMessage("/greet read");
-                        args.Player.SendErrorMessage("/greet remove");
-                    }
-                    else
-                    {
-                        args.Player.SendErrorMessage("/greet setcolor <player> <r> <g> <b>");
-                        args.Player.SendErrorMessage("/greet read");
-                        args.Player.SendErrorMessage("/greet remove [player]");
-                        args.Player.SendErrorMessage("/greet setother <player> <greeting>");
-                        args.Player.SendErrorMessage("/greet readother <player>");
-                    }
-                }
-            }
+            args.Player.SendErrorMessage("Invalid syntax:");
+            args.Player.SendErrorMessage("{0}greet set <player> <announcement>", TShock.Config.CommandSpecifier);
+            args.Player.SendErrorMessage("{0}greet remove <player>", TShock.Config.CommandSpecifier);
+            if (args.Player.Group.HasPermission("oa.mod"))
+                args.Player.SendErrorMessage("{0}greet color <player> <rgb>", TShock.Config.CommandSpecifier);
         }
-        #endregion
 
-        #region Leave command
         private void ULeave(CommandArgs args)
         {
-            if (args.Parameters.Count == 0)
+            if (args.Parameters.Count > 2 && args.Parameters[0].ToLower() == "set")
             {
-                args.Player.SendErrorMessage("Invalid syntax:");
-                args.Player.SendErrorMessage("/leave set <leave message>");
-                if (!args.Player.Group.HasPermission("leave.mod"))
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
+
+                if (player == null)
                 {
-                    args.Player.SendErrorMessage("/leave read");
-                    args.Player.SendErrorMessage("/leave remove");
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
                 }
-                else
+
+                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
                 {
-                    args.Player.SendErrorMessage("/leave setcolor <player> <r> <g> <b>");
-                    args.Player.SendErrorMessage("/leave read");
-                    args.Player.SendErrorMessage("/leave remove [player]");
-                    args.Player.SendErrorMessage("/leave setother <player> <leave message>");
-                    args.Player.SendErrorMessage("/leave readother <player>");
+                    args.Player.SendErrorMessage("You do not have permission to change other players' leaving announcement.");
+                    return;
                 }
+
+                List<string> param = args.Parameters;
+
+                param.RemoveAt(0); //Remove 'set'
+                param.RemoveAt(0); //Remove player name
+
+                string announcement = string.Join(" ", param.Select(p => p));
+
+                foreach (string badword in config.badwords)
+                {
+                    if (announcement.Contains(badword) && !args.Player.Group.HasPermission("oa.mod"))
+                    {
+                        args.Player.SendErrorMessage("You may not use the phrase {0} in this leaving announcement!", badword);
+                        return;
+                    }
+                }
+
+                setAnnounce(false, player.ID, player.Name, announcement);
+                args.Player.SendSuccessMessage("{0} leaving announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].leave), players[player.ID].leaveRGB);
+
+                return;
             }
-            else if (args.Parameters.Count == 1)
+
+            if (args.Parameters.Count == 2 && args.Parameters[0].ToLower() == "remove")
             {
-                if (args.Parameters[0].ToLower() == "read")
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
+
+                if (player == null)
                 {
-                    if (hasLeave(args.Player.UserID))
-                    {
-                        args.Player.SendInfoMessage("Your leaving message: ");
-                        args.Player.SendMessage(getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
-                    }
-                    else
-                        args.Player.SendInfoMessage("You do not have a leaving message set. Use /leave set <leaving message> to set a leaving message.");
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
                 }
-                else if (args.Parameters[0].ToLower() == "remove")
+
+                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
                 {
-                    if (hasLeave(args.Player.UserID))
-                    {
-                        removeLeave(args.Player.UserID);
-                        args.Player.SendSuccessMessage("Your leaving message was removed successfully.");
-                    }
-                    else
-                        args.Player.SendErrorMessage("You do not have a leaving message to remove.");
+                    args.Player.SendErrorMessage("You do not have permission to remove other players' leaving announcement.");
+                    return;
                 }
-                else
+
+                if (!players.ContainsKey(player.ID) || players[player.ID].leave == null)
                 {
-                    args.Player.SendErrorMessage("Invalid syntax:");
-                    args.Player.SendErrorMessage("/leave set <leaving message>");
-                    if (!args.Player.Group.HasPermission("leave.mod"))
-                    {
-                        args.Player.SendErrorMessage("/leave read");
-                        args.Player.SendErrorMessage("/leave remove");
-                    }
-                    else
-                    {
-                        args.Player.SendErrorMessage("/leave setcolor <player> <r> <g> <b>");
-                        args.Player.SendErrorMessage("/leave read");
-                        args.Player.SendErrorMessage("/leave remove [player]");
-                        args.Player.SendErrorMessage("/leave setother <player> <leaving message>");
-                        args.Player.SendErrorMessage("/leave readother <player>");
-                    }
+                    args.Player.SendErrorMessage("This player doesn't have a leaving announcement to remove!");
+                    return;
                 }
+
+                removeAnnounce(false, player.ID);
+                args.Player.SendSuccessMessage("{0} leaving announcement has been removed.", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+
+                return;
             }
-            else if (args.Parameters.Count == 2)
+
+            if (args.Parameters.Count > 2 && args.Parameters[0].ToLower() == "color")
             {
-                if (args.Parameters[0].ToLower() == "set")
+                if (!args.Player.Group.HasPermission("oa.mod"))
                 {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set your leaving message from here.");
-                        return;
-                    }
+                    args.Player.SendErrorMessage("You do not have permission to change leaving announcement colors.");
+                    return;
+                }
 
-                    if (setLeave(args.Player.UserID, args.Parameters[1], args.Player.Group.HasPermission("leave.admin") ? true : false))
-                    {
-                        args.Player.SendSuccessMessage("Your leaving message has been set to: ");
-                        args.Player.SendMessage(getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
-                    }
-                    else
-                        args.Player.SendErrorMessage("Your leaving message contained a forbidden word and may not be used as a leaving message.");
-                }
-                else if (args.Parameters[0].ToLower() == "remove")
-                {
-                    if (!args.Player.Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to remove other leaving messages.");
-                        return;
-                    }
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
 
-                    User plr = TShock.Users.GetUserByName(args.Parameters[1]);
-                    if (plr == null)
-                        args.Player.SendErrorMessage("Invalid player.");
-                    else if (!hasLeave(plr.ID))
-                        args.Player.SendErrorMessage("This player does not have a leaving message to remove.");
-                    else
-                    {
-                        removeLeave(plr.ID);
-                        args.Player.SendSuccessMessage("{0}'s leaving message was removed successfully.", plr.Name);
-                    }
-                }
-                else if (args.Parameters[0].ToLower() == "readother")
+                if (player == null)
                 {
-                    if (!args.Player.Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to read other leaving message.");
-                        return;
-                    }
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
+                }
 
-                    User plr = TShock.Users.GetUserByName(args.Parameters[1]);
-                    if (plr == null)
-                        args.Player.SendErrorMessage("Invalid player.");
-                    else
-                        args.Player.SendMessage(getLeave(plr.ID), getLeaveRGB(plr.ID));
-                }
-                else
+                if (!players.ContainsKey(player.ID) || players[player.ID].greet == null)
                 {
-                    args.Player.SendErrorMessage("Invalid syntax:");
-                    args.Player.SendErrorMessage("/leave set <leaving message>");
-                    if (!args.Player.Group.HasPermission("leave.mod"))
-                    {
-                        args.Player.SendErrorMessage("/leave read");
-                        args.Player.SendErrorMessage("/leave remove");
-                    }
-                    else
-                    {
-                        args.Player.SendErrorMessage("/leave setcolor <player> <r> <g> <b>");
-                        args.Player.SendErrorMessage("/leave read");
-                        args.Player.SendErrorMessage("/leave remove [player]");
-                        args.Player.SendErrorMessage("/leave setother <player> <leaving message>");
-                        args.Player.SendErrorMessage("/leave readother <player>");
-                    }
+                    args.Player.SendErrorMessage("This player doesn't have a greeting announcement to modify the color of!");
+                    return;
                 }
+
+                Color color;
+
+                List<string> param = args.Parameters;
+
+                param.RemoveAt(0); //Remove 'color'
+                param.RemoveAt(0); //Remove player name
+
+                if (!tryParseColor(param, out color))
+                {
+                    args.Player.SendErrorMessage("Invalid color syntax: {0}leave color <player> rrr,ggg,bbb OR {0}leave color <player> rrr ggg bbb", TShock.Config.CommandSpecifier);
+                    return;
+                }
+
+                setColor(false, player.ID, color);
+                args.Player.SendSuccessMessage("{0} leaving announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].leave), players[player.ID].leaveRGB);
+
+                return;
             }
-            else //if (args.Parameters.Count > 2)
+
+            args.Player.SendErrorMessage("Invalid syntax:");
+            args.Player.SendErrorMessage("{0}leave set <player> <announcement>", TShock.Config.CommandSpecifier);
+            args.Player.SendErrorMessage("{0}leave remove <player>", TShock.Config.CommandSpecifier);
+            if (args.Player.Group.HasPermission("oa.mod"))
+                args.Player.SendErrorMessage("{0}leave color <player> <rgb>", TShock.Config.CommandSpecifier);
+        }
+
+        private void UPurge(CommandArgs args)
+        {
+            if (args.Parameters.Count == 1 && args.Parameters[0].ToLower() == "confirm")
             {
-                if (args.Parameters[0].ToLower() == "set")
-                {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set your leaving message from here.");
-                        return;
-                    }
-
-                    string leave = string.Join(" ", args.Parameters);
-                    leave = leave.Replace("set ", "");
-
-                    if (setLeave(args.Player.UserID, leave, args.Player.Group.HasPermission("leave.admin") ? true : false))
-                    {
-                        args.Player.SendSuccessMessage("Your leaving message has been set to:");
-                        args.Player.SendMessage(getLeave(args.Player.UserID), getLeaveRGB(args.Player.UserID));
-                    }
-                    else
-                        args.Player.SendErrorMessage("Your leaving message contained a forbidden word and may not be used as a leaving message.");
-                }
-                else if (args.Parameters[0].ToLower() == "setcolor")
-                {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set your leaving message color from here.");
-                        return;
-                    }
-
-                    if (!args.Player.Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to set leaving message colors!");
-                        return;
-                    }
-
-                    if (args.Parameters.Count != 5)
-                        args.Player.SendErrorMessage("Invalid syntax: /leave setcolor <player> <r> <g> <b>");
-                    else
-                    {
-                        string plr = args.Parameters[1];
-                        List<TSPlayer> listofplayers = TShock.Utils.FindPlayer(plr);
-                        if (listofplayers.Count < 1)
-                            args.Player.SendErrorMessage("Invalid player!");
-                        else if (listofplayers.Count > 1)
-                        {
-                            TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
-                        }
-                        else if (!hasLeave(listofplayers[0].UserID))
-                        {
-                            args.Player.SendErrorMessage("This player does not have a leaving message to change the color of!");
-                        }
-                        else if ((listofplayers[0].Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin")) && listofplayers[0] != args.Player)
-                            args.Player.SendErrorMessage("You do not have permission to change this player's leaving message color!");
-                        else
-                        {
-                            int[] rgbcolor = { 127, 255, 212 };
-                            bool[] isParsed = { false, false, false };
-
-                            isParsed[0] = int.TryParse(args.Parameters[2], out rgbcolor[0]);
-                            isParsed[1] = int.TryParse(args.Parameters[3], out rgbcolor[1]);
-                            isParsed[2] = int.TryParse(args.Parameters[4], out rgbcolor[2]);
-
-                            if (isParsed.Contains(false))
-                            {
-                                args.Player.SendErrorMessage("Invalid RGB colors!");
-                                return;
-                            }
-
-                            setLeaveRGB(listofplayers[0].UserID, rgbcolor);
-                            args.Player.SendSuccessMessage("Leaving message color set successfully.");
-                        }
-                    }
-                }
-                else if (args.Parameters[0].ToLower() == "setother")
-                {
-                    if (!args.Player.RealPlayer)
-                    {
-                        args.Player.SendErrorMessage("You may not set a leaving message from here.");
-                        return;
-                    }
-
-                    if (!args.Player.Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
-                    {
-                        args.Player.SendErrorMessage("You do not have permission to set other leaving message.");
-                        return;
-                    }
-
-                    string plr = args.Parameters[1];
-                    List<TSPlayer> listofplayers = TShock.Utils.FindPlayer(plr);
-                    if (listofplayers.Count < 1)
-                        args.Player.SendErrorMessage("Invalid player!");
-                    else if (listofplayers.Count > 1)
-                    {
-                        TShock.Utils.SendMultipleMatchError(args.Player, listofplayers.Select(p => p.UserAccountName));
-                    }
-                    else if (listofplayers[0].Group.HasPermission("leave.mod") && !args.Player.Group.HasPermission("leave.admin"))
-                    {
-                        args.Player.SendErrorMessage("You cannot edit this person's leaving message!");
-                        return;
-                    }
-                    else
-                    {
-                        string leave = string.Join(" ", args.Parameters);
-                        string replace = "setother " + args.Parameters[1] + " ";
-                        leave = leave.Replace(replace, "");
-
-                        if (setLeave(listofplayers[0].UserID, leave, args.Player.Group.HasPermission("leave.admin") ? true : false))
-                        {
-                            args.Player.SendSuccessMessage("{0}'s leaving message was set to:", listofplayers[0].Name);
-                            args.Player.SendMessage(getLeave(listofplayers[0].UserID), getLeaveRGB(listofplayers[0].UserID));
-                        }
-                        else
-                            args.Player.SendErrorMessage("Your leaving message contained a forbidden word and cannot be used as a leaving message.");
-                    }
-                }
-                else
-                {
-                    args.Player.SendErrorMessage("Invalid syntax:");
-                    args.Player.SendErrorMessage("/leave set <leaving message>");
-                    if (!args.Player.Group.HasPermission("leave.mod"))
-                    {
-                        args.Player.SendErrorMessage("/leave read");
-                        args.Player.SendErrorMessage("/leave remove");
-                    }
-                    else
-                    {
-                        args.Player.SendErrorMessage("/leave setcolor <player> <r> <g> <b>");
-                        args.Player.SendErrorMessage("/leave read");
-                        args.Player.SendErrorMessage("/leave remove [player]");
-                        args.Player.SendErrorMessage("/leave setother <player> <leaving message>");
-                        args.Player.SendErrorMessage("/leave readother <player>");
-                    }
-                }
+                purgeDatabase();
+                args.Player.SendSuccessMessage("Players with empty announcements have been purged from the database.");
+                return;
             }
+            args.Player.SendErrorMessage("This command will remove any database entries where any given player has no greeting AND no leaving announcements.");
+            args.Player.SendErrorMessage("Use '/pa confirm' to activate this command.");
         }
         #endregion
 
+        #region Internal Methods
 
-        private void UReload(CommandArgs args)
+        private bool tryParseColor(List<string> ucolor, out Color color)
         {
-            loadConfig();
-            args.Player.SendSuccessMessage("Greet config reloaded.");
+            color = new Color();
+
+            if (ucolor.Count != 1 && ucolor.Count != 3)
+                return false;
+
+            string[] rgb = new string[] { "-1", "-1", "-1" };
+
+            if (ucolor.Count == 1)
+            {
+                rgb = ucolor[0].Split(',');
+                if (rgb.Length != 3)
+                    return false;
+            }
+            if (ucolor.Count == 3)
+            {
+                rgb = new string[] { ucolor[0], ucolor[1], ucolor[2] };
+            }
+
+            int r = -1;
+            int g = -1;
+            int b = -1;
+
+            if (!int.TryParse(rgb[0], out r) || !int.TryParse(rgb[1], out g) || !int.TryParse(rgb[2], out b))
+                return false;
+
+            if (r < 0 || r > 255)
+                return false;
+            if (g < 0 || g > 255)
+                return false;
+            if (b < 0 || b > 255)
+                return false;
+
+            color = new Color(r, g, b);
+
+            return true;
         }
 
-        #region Database commands
+        private string colorToString(Color color)
+        {
+            return string.Format("{0},{1},{2}", color.R.ToString(), color.G.ToString(), color.B.ToString());
+        }
+        #endregion
+
+        private void loadConfig()
+        {
+            (config = Config.Read(configPath)).Write(configPath);
+        }
+        #region Database Methods
+
         private void DBConnect()
         {
             switch (TShock.Config.StorageType.ToLower())
@@ -693,7 +511,7 @@ namespace OnlineAnnounce
                     break;
 
                 case "sqlite":
-                    string sql = Path.Combine(TShock.SavePath, "Greetings.sqlite");
+                    string sql = Path.Combine(TShock.SavePath, "tshock.sqlite");
                     db = new SqliteConnection(string.Format("uri=file://{0},Version=3", sql));
                     break;
 
@@ -701,201 +519,114 @@ namespace OnlineAnnounce
 
             SqlTableCreator sqlcreator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite ? (IQueryBuilder)new SqliteQueryCreator() : new MysqlQueryCreator());
 
-            sqlcreator.EnsureTableStructure(new SqlTable("Greetings",
-                new SqlColumn("UserID", MySqlDbType.Int32) { Primary = true, Unique = true, Length = 4 },
-                new SqlColumn("Greeting", MySqlDbType.Text) { Length = 50 },
-                new SqlColumn("R", MySqlDbType.Int32) { Length = 3 },
-                new SqlColumn("G", MySqlDbType.Int32) { Length = 3 },
-                new SqlColumn("B", MySqlDbType.Int32) { Length = 3 }));
-
-            sqlcreator.EnsureTableStructure(new SqlTable("Leavings",
-                new SqlColumn("UserID", MySqlDbType.Int32) { Primary = true, Unique = true, Length = 4 },
-                new SqlColumn("Leaving", MySqlDbType.Text) { Length = 50 },
-                new SqlColumn("R", MySqlDbType.Int32) { Length = 3 },
-                new SqlColumn("G", MySqlDbType.Int32) { Length = 3 },
-                new SqlColumn("B", MySqlDbType.Int32) { Length = 3 }));
+            sqlcreator.EnsureTableStructure(new SqlTable("onlineannounce",
+                new SqlColumn("userid", MySqlDbType.Int32) { Primary = true, Unique = true, Length = 6 },
+                new SqlColumn("greet", MySqlDbType.Text) { Length = 100 },
+                new SqlColumn("leaving", MySqlDbType.Text) { Length = 100 },
+                new SqlColumn("greetrgb", MySqlDbType.Text) { Length = 11, NotNull = true },
+                new SqlColumn("leavergb", MySqlDbType.Text) { Length = 11, NotNull = true }));
         }
 
-        #region GreetCommands
-        public static string getGreet(int userid)
+        private void readDatabase()
         {
-            if (hasGreet(userid))
+            players.Clear();
+
+            using (QueryResult reader = db.QueryReader(@"SELECT * FROM onlineannounce;"))
             {
-                using (QueryResult reader = db.QueryReader(@"SELECT * FROM Greetings WHERE UserID=@0", userid))
+                while (reader.Read())
                 {
-                    if (reader.Read())
-                        return reader.Get<string>("Greeting");
-                    else
-                        return null; //This should never happen
+                    string uan = TShock.Users.GetUserByID(reader.Get<int>("userid")).Name;
+
+                    Color greetrgb;
+                    Color leavergb;
+                    tryParseColor(new List<string>() { reader.Get<string>("greetrgb") }, out greetrgb);
+                    tryParseColor(new List<string>() { reader.Get<string>("leavergb") }, out leavergb);
+                    players.Add(reader.Get<int>("userid"), new OAPlayer(reader.Get<string>("greet"), reader.Get<string>("leaving"), uan, reader.Get<int>("userid"), greetrgb, leavergb));
                 }
             }
-            else
-                return null; //This should never happen
         }
 
-        public static Color getGreetRGB(int userid)
+        private int purgeDatabase()
         {
-            byte[] uacolor = { (byte)127, (byte)255, (byte)212 };
+            List<int> delUserID = new List<int>();
 
-            if (hasGreet(userid))
+            foreach (KeyValuePair<int, OAPlayer> kvp in players)
             {
-                using (QueryResult reader = db.QueryReader(@"SELECT * FROM Greetings WHERE UserID=@0", userid))
-                {
-                    if (reader.Read())
-                    {
-                        uacolor[0] = (byte)reader.Get<int>("R");
-                        uacolor[1] = (byte)reader.Get<int>("G");
-                        uacolor[2] = (byte)reader.Get<int>("B");
-                    }
-                }
-
-                return new Color(uacolor[0], uacolor[1], uacolor[2]);
+                if (kvp.Value.greet == null && kvp.Value.leave == null)
+                    delUserID.Add(kvp.Key);
             }
-            else
-                return new Color(uacolor[0], uacolor[1], uacolor[2]); //This should never happen
+
+            int count = 0;
+
+            foreach (int id in delUserID)
+            {
+                players.Remove(id);
+                db.Query("DELETE FROM onlineannounce WHERE userid=@0;", id);
+                count++;
+            }
+
+            return count;
         }
 
-        public static bool hasGreet(int userid)
+        private void setAnnounce(bool isGreeting, int userid, string useraccountname, string announcement)
         {
-            using (QueryResult reader = db.QueryReader(@"SELECT * FROM Greetings WHERE UserID=@0", userid))
+            if (players.ContainsKey(userid))
             {
-                if (reader.Read())
-                    return true;
+                if (isGreeting)
+                {
+                    players[userid].greet = announcement;
+                    db.Query("UPDATE onlineannounce SET greet=@0 WHERE userid = @1;", announcement, userid.ToString());
+                }
                 else
-                    return false;
-            }
-        }
-
-        private bool setGreet(int userid, string greet, bool ignore)
-        {
-            if (!ignore)
-                foreach (string badword in badwords)
-                    if (greet.ToLower().Contains(badword.ToLower()))
-                        return false;
-
-            if (hasGreet(userid))
-                db.Query("UPDATE Greetings SET Greeting=@0 WHERE UserID=@1", greet, userid);
-            else
-                db.Query("INSERT INTO Greetings (UserID, Greeting, R, G, B) VALUES (@0, @1, 127, 255, 212)", userid, greet);
-
-            return true;
-        }
-
-        private void setGreetRGB(int userid, int[] rgbcolor)
-        {
-            if (hasGreet(userid))
-            {
-                db.Query("UPDATE Greetings SET R=@0 WHERE UserID=@1", rgbcolor[0], userid);
-                db.Query("UPDATE Greetings SET G=@0 WHERE UserID=@1", rgbcolor[1], userid);
-                db.Query("UPDATE Greetings SET B=@0 WHERE UserID=@1", rgbcolor[2], userid);
-            }
-        }
-
-        private void removeGreet(int userid)
-        {
-            if (hasGreet(userid))
-                db.Query("DELETE FROM Greetings WHERE UserID=@0", userid);
-        }
-        #endregion
-
-        #region LeaveCommands
-        private string getLeave(int userid)
-        {
-            if (hasLeave(userid))
-            {
-                using (QueryResult reader = db.QueryReader(@"SELECT * FROM Leavings WHERE UserID=@0", userid))
                 {
-                    if (reader.Read())
-                        return reader.Get<string>("Leaving");
-                    else
-                        return null; //This should never happen
+                    players[userid].leave = announcement;
+                    db.Query("UPDATE onlineannounce SET leaving=@0 WHERE userid = @1;", announcement, userid.ToString());
                 }
             }
             else
-                return null; //This should never happen
-        }
-
-        private Color getLeaveRGB(int userid)
-        {
-            byte[] uacolor = { (byte)127, (byte)255, (byte)212 };
-
-            if (hasLeave(userid))
             {
-                using (QueryResult reader = db.QueryReader(@"SELECT * FROM Leavings WHERE UserID=@0", userid))
+
+                if (isGreeting)
                 {
-                    if (reader.Read())
-                    {
-                        uacolor[0] = (byte)reader.Get<int>("R");
-                        uacolor[1] = (byte)reader.Get<int>("G");
-                        uacolor[2] = (byte)reader.Get<int>("B");
-                    }
+                    players.Add(userid, new OAPlayer(true, announcement, useraccountname, userid));
+                    db.Query("INSERT INTO onlineannounce (userid, greet, greetrgb, leavergb) VALUES (@0, @1, @2, @3);", userid.ToString(), announcement, colorToString(players[userid].greetRGB), colorToString(players[userid].leaveRGB));
                 }
-
-                return new Color(uacolor[0], uacolor[1], uacolor[2]);
-            }
-            else
-                return new Color(uacolor[0], uacolor[1], uacolor[2]); //This should never happen
-        }
-
-        private bool hasLeave(int userid)
-        {
-            using (QueryResult reader = db.QueryReader(@"SELECT * FROM Leavings WHERE UserID=@0", userid))
-            {
-                if (reader.Read())
-                    return true;
                 else
-                    return false;
+                {
+                    players.Add(userid, new OAPlayer(false, announcement, useraccountname, userid));
+                    db.Query("INSERT INTO onlineannounce (userid, leaving, greetrgb, leavergb) VALUES (@0, @1, @2, @3);", userid.ToString(), announcement, colorToString(players[userid].greetRGB), colorToString(players[userid].leaveRGB));
+                }
             }
         }
 
-        private bool setLeave(int userid, string greet, bool ignore)
+        private void removeAnnounce(bool isGreeting, int userid)
         {
-            if (!ignore)
-                foreach (string badword in badwords)
-                    if (greet.ToLower().Contains(badword.ToLower()))
-                        return false;
-
-            if (hasLeave(userid))
-                db.Query("UPDATE Leavings SET Leaving=@0 WHERE UserID=@1", greet, userid);
+            if (isGreeting)
+            {
+                players[userid].greet = null;
+                db.Query("UPDATE onlineannounce SET greet=null WHERE userid=@0;", userid.ToString());
+            }
             else
-                db.Query("INSERT INTO Leavings (UserID, Leaving, R, G, B) VALUES (@0, @1, 127, 255, 212)", userid, greet);
-
-            return true;
-        }
-
-        private void setLeaveRGB(int userid, int[] rgbcolor)
-        {
-            if (hasLeave(userid))
             {
-                db.Query("UPDATE Leavings SET R=@0 WHERE UserID=@1", rgbcolor[0], userid);
-                db.Query("UPDATE Leavings SET G=@0 WHERE UserID=@1", rgbcolor[1], userid);
-                db.Query("UPDATE Leavings SET B=@0 WHERE UserID=@1", rgbcolor[2], userid);
+                players[userid].leave = null;
+                db.Query("UPDATE onlineannounce SET leaving=null WHERE userid=@0;", userid.ToString());
             }
         }
 
-        private void removeLeave(int userid)
+        private void setColor(bool isGreeting, int userid, Color color)
         {
-            if (hasLeave(userid))
-                db.Query("DELETE FROM Leavings WHERE UserID=@0", userid);
+            if (isGreeting)
+            {
+                players[userid].greetRGB = color;
+                db.Query("UPDATE onlineannounce SET greetrgb=@0 WHERE userid=@1;", colorToString(color), userid);
+            }
+            else
+            {
+                players[userid].leaveRGB = color;
+                db.Query("UPDATE onlineannounce SET leavergb=@0 WHERE userid=@1;", colorToString(color), userid);
+            }
         }
+
         #endregion
-        #endregion
-
-        private void loadConfig()
-        {
-            (config = Config.Read(configPath)).Write(configPath);
-
-            try
-            {
-                badwords.Clear();
-                foreach (string badword in config.Badwords)
-                    badwords.Add(badword);
-            }
-            catch
-            {
-                Console.WriteLine("Error reading OnlineAnnounceConfig.json: Invalid badwords format.");
-                Log.Error("Error reading OnlineAnnounceConfig.json: Invalid badwords format.");
-            }
-        }
     }
 }
