@@ -78,7 +78,7 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(4, 3, 1, 2); } }
+        public override Version Version { get { return new Version(4, 3, 1, 3); } }
 
         private static IDbConnection db;
         public static Config config = new Config();
@@ -130,6 +130,9 @@ namespace OnlineAnnounce
 
         private void OnGreet(GreetPlayerEventArgs args)
         {
+            if (TShock.Players[args.Who] == null)
+                return;
+
             int id = TShock.Players[args.Who].UserID;
 
             if (!indexid.ContainsKey(args.Who))
@@ -176,6 +179,8 @@ namespace OnlineAnnounce
 
             if (indexid.ContainsKey(args.Who))
                 id = indexid[args.Who];
+            else
+                return;
 
             if (id != -1)
             {
