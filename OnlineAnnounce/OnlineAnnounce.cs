@@ -78,7 +78,7 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(4, 3, 1, 3); } }
+        public override Version Version { get { return new Version(4, 3, 2, 0); } }
 
         private static IDbConnection db;
         public static Config config = new Config();
@@ -100,6 +100,7 @@ namespace OnlineAnnounce
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
             GeneralHooks.ReloadEvent += OnReload;
             PlayerHooks.PlayerPostLogin += OnPostLogin;
+            AccountHooks.AccountDelete += OnDelete;
         }
 
         protected override void Dispose(bool Disposing)
@@ -111,6 +112,7 @@ namespace OnlineAnnounce
                 ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
                 GeneralHooks.ReloadEvent -= OnReload;
                 PlayerHooks.PlayerPostLogin -= OnPostLogin;
+                AccountHooks.AccountDelete -= OnDelete;
             }
             base.Dispose(Disposing);
         }
@@ -191,6 +193,11 @@ namespace OnlineAnnounce
             }
 
             indexid.Remove(args.Who);
+        }
+
+        void OnDelete(AccountDeleteEventArgs e)
+        {
+            db.Query("DELETE FROM `onlineannounce` WHERE userid=@0;", e.User.ID.ToString());
         }
         #endregion
 
@@ -440,7 +447,7 @@ namespace OnlineAnnounce
                 return;
             }
             args.Player.SendErrorMessage("This command will remove any database entries where any given player has no greeting AND no leaving announcements.");
-            args.Player.SendErrorMessage("Use '/pa confirm' to activate this command.");
+            args.Player.SendErrorMessage("Use '{0}pa confirm' to activate this command.", TShock.Config.CommandSpecifier);
         }
         #endregion
 
