@@ -72,13 +72,13 @@ namespace OnlineAnnounce
         }
     }
 
-    [ApiVersion(1, 16)]
+    [ApiVersion(1, 17)]
     public class OnlineAnnounce : TerrariaPlugin
     {
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(4, 3, 2, 0); } }
+        public override Version Version { get { return new Version(4, 3, 3, 0); } }
 
         private static IDbConnection db;
         public static Config config = new Config();
@@ -198,6 +198,7 @@ namespace OnlineAnnounce
         void OnDelete(AccountDeleteEventArgs e)
         {
             db.Query("DELETE FROM `onlineannounce` WHERE userid=@0;", e.User.ID.ToString());
+            TShock.Log.Info("{0} has been removed from the onlineannounce database.", e.User.Name);
         }
         #endregion
 
@@ -302,7 +303,7 @@ namespace OnlineAnnounce
 
                 if (!tryParseColor(param, out color))
                 {
-                    args.Player.SendErrorMessage("Invalid color syntax: {0}greet color <player> rrr,ggg,bbb OR {0}greet color <player> rrr ggg bbb", TShock.Config.CommandSpecifier);
+                    args.Player.SendErrorMessage("Invalid color syntax: {0}greet color <player> rrr,ggg,bbb OR {0}greet color <player> rrr ggg bbb", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
                     return;
                 }
 
@@ -314,10 +315,10 @@ namespace OnlineAnnounce
             }
 
             args.Player.SendErrorMessage("Invalid syntax:");
-            args.Player.SendErrorMessage("{0}greet set <player> <announcement>", TShock.Config.CommandSpecifier);
-            args.Player.SendErrorMessage("{0}greet remove <player>", TShock.Config.CommandSpecifier);
+            args.Player.SendErrorMessage("{0}greet set <player> <announcement>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
+            args.Player.SendErrorMessage("{0}greet remove <player>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
             if (args.Player.Group.HasPermission("oa.mod"))
-                args.Player.SendErrorMessage("{0}greet color <player> <rgb>", TShock.Config.CommandSpecifier);
+                args.Player.SendErrorMessage("{0}greet color <player> <rgb>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
         }
 
         private void ULeave(CommandArgs args)
@@ -420,7 +421,7 @@ namespace OnlineAnnounce
 
                 if (!tryParseColor(param, out color))
                 {
-                    args.Player.SendErrorMessage("Invalid color syntax: {0}leave color <player> rrr,ggg,bbb OR {0}leave color <player> rrr ggg bbb", TShock.Config.CommandSpecifier);
+                    args.Player.SendErrorMessage("Invalid color syntax: {0}leave color <player> rrr,ggg,bbb OR {0}leave color <player> rrr ggg bbb", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
                     return;
                 }
 
@@ -432,10 +433,10 @@ namespace OnlineAnnounce
             }
 
             args.Player.SendErrorMessage("Invalid syntax:");
-            args.Player.SendErrorMessage("{0}leave set <player> <announcement>", TShock.Config.CommandSpecifier);
-            args.Player.SendErrorMessage("{0}leave remove <player>", TShock.Config.CommandSpecifier);
+            args.Player.SendErrorMessage("{0}leave set <player> <announcement>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
+            args.Player.SendErrorMessage("{0}leave remove <player>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
             if (args.Player.Group.HasPermission("oa.mod"))
-                args.Player.SendErrorMessage("{0}leave color <player> <rgb>", TShock.Config.CommandSpecifier);
+                args.Player.SendErrorMessage("{0}leave color <player> <rgb>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
         }
 
         private void UPurge(CommandArgs args)
@@ -447,7 +448,7 @@ namespace OnlineAnnounce
                 return;
             }
             args.Player.SendErrorMessage("This command will remove any database entries where any given player has no greeting AND no leaving announcements.");
-            args.Player.SendErrorMessage("Use '{0}pa confirm' to activate this command.", TShock.Config.CommandSpecifier);
+            args.Player.SendErrorMessage("Use '{0}pa confirm' to activate this command.", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
         }
         #endregion
 
