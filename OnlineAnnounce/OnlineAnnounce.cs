@@ -78,7 +78,7 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(4, 3, 3, 0); } }
+        public override Version Version { get { return new Version(4, 3, 3, 1); } }
 
         private static IDbConnection db;
         public static Config config = new Config();
@@ -136,7 +136,7 @@ namespace OnlineAnnounce
                 return;
 
             int id = TShock.Players[args.Who].UserID;
-
+			
             if (!indexid.ContainsKey(args.Who))
                 indexid.Add(args.Who, id);
 
@@ -154,7 +154,7 @@ namespace OnlineAnnounce
         private void OnPostLogin(PlayerPostLoginEventArgs args)
         {
             int id = args.Player.UserID;
-
+			
             if (!indexid.ContainsKey(args.Player.Index))
                 indexid.Add(args.Player.Index, args.Player.UserID);
             else
@@ -184,15 +184,15 @@ namespace OnlineAnnounce
             else
                 return;
 
-            if (id != -1)
+            if (id != -1 && players.ContainsKey(id))
             {
                 players[id].Leave();
 
                 players[id].pastGreet = false;
                 players[id].hasGreeted = false;
-            }
 
-            indexid.Remove(args.Who);
+				indexid.Remove(args.Who);
+            }
         }
 
         void OnDelete(AccountDeleteEventArgs e)
