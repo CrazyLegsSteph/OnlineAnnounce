@@ -135,7 +135,7 @@ namespace OnlineAnnounce
             if (TShock.Players[args.Who] == null)
                 return;
 
-            int id = TShock.Players[args.Who].UserID;
+            int id = TShock.Players[args.Who].User.ID;
 			
             if (!indexid.ContainsKey(args.Who))
                 indexid.Add(args.Who, id);
@@ -153,10 +153,10 @@ namespace OnlineAnnounce
 
         private void OnPostLogin(PlayerPostLoginEventArgs args)
         {
-            int id = args.Player.UserID;
+            int id = args.Player.User.ID;
 			
             if (!indexid.ContainsKey(args.Player.Index))
-                indexid.Add(args.Player.Index, args.Player.UserID);
+                indexid.Add(args.Player.Index, args.Player.User.ID);
             else
                 indexid[args.Player.Index] = id;
 
@@ -215,7 +215,7 @@ namespace OnlineAnnounce
                     return;
                 }
 
-                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
+                if (player.Name != args.Player.User.Name && !args.Player.Group.HasPermission("oa.mod"))
                 {
                     args.Player.SendErrorMessage("You do not have permission to change other players' greeting announcement.");
                     return;
@@ -238,9 +238,35 @@ namespace OnlineAnnounce
                 }
 
                 setAnnounce(true, player.ID, player.Name, announcement);
-                args.Player.SendSuccessMessage("{0} greeting announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendSuccessMessage("{0} greeting announcement has been set to:", (player.Name == args.Player.User.Name ? "Your" : (player.Name + "'s")));
                 args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].greet), players[player.ID].greetRGB);
 
+                return;
+            }
+
+            if (args.Parameters.Count == 2 && args.Parameters[0].ToLower() == "read")
+            {
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
+
+                if (player == null)
+                {
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
+                }
+
+                if (player.Name != args.Player.User.Name && !args.Player.Group.HasPermission("oa.mod"))
+                {
+                    args.Player.SendErrorMessage("You cannot view others' greeting announcements!");
+                    return;
+                }
+
+                if (!players.ContainsKey(player.ID) || players[player.ID].greet == null)
+                {
+                    args.Player.SendErrorMessage("This player doesn't have a greeting announcement!");
+                    return;
+                }
+
+                args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].greet), players[player.ID].greetRGB);
                 return;
             }
 
@@ -254,7 +280,7 @@ namespace OnlineAnnounce
                     return;
                 }
 
-                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
+                if (player.Name != args.Player.User.Name && !args.Player.Group.HasPermission("oa.mod"))
                 {
                     args.Player.SendErrorMessage("You do not have permission to remove other players' greeting announcement.");
                     return;
@@ -267,7 +293,7 @@ namespace OnlineAnnounce
                 }
 
                 removeAnnounce(true, player.ID);
-                args.Player.SendSuccessMessage("{0} greeting announcement has been removed.", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendSuccessMessage("{0} greeting announcement has been removed.", (player.Name == args.Player.User.Name ? "Your" : (player.Name + "'s")));
 
                 return;
             }
@@ -308,7 +334,7 @@ namespace OnlineAnnounce
                 }
 
                 setColor(true, player.ID, color);
-                args.Player.SendSuccessMessage("{0} greeting announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendSuccessMessage("{0} greeting announcement has been set to:", (player.Name == args.Player.User.Name ? "Your" : (player.Name + "'s")));
                 args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].greet), players[player.ID].greetRGB);
 
                 return;
@@ -333,7 +359,7 @@ namespace OnlineAnnounce
                     return;
                 }
 
-                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
+                if (player.Name != args.Player.User.Name && !args.Player.Group.HasPermission("oa.mod"))
                 {
                     args.Player.SendErrorMessage("You do not have permission to change other players' leaving announcement.");
                     return;
@@ -356,9 +382,35 @@ namespace OnlineAnnounce
                 }
 
                 setAnnounce(false, player.ID, player.Name, announcement);
-                args.Player.SendSuccessMessage("{0} leaving announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendSuccessMessage("{0} leaving announcement has been set to:", (player.Name == args.Player.User.Name ? "Your" : (player.Name + "'s")));
                 args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].leave), players[player.ID].leaveRGB);
 
+                return;
+            }
+
+            if (args.Parameters.Count == 2 && args.Parameters[0].ToLower() == "read")
+            {
+                TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
+
+                if (player == null)
+                {
+                    args.Player.SendErrorMessage("User doesn't exist: {0}", args.Parameters[1]);
+                    return;
+                }
+
+                if (player.Name != args.Player.User.Name && !args.Player.Group.HasPermission("oa.mod"))
+                {
+                    args.Player.SendErrorMessage("You cannot view others' leaving announcements!");
+                    return;
+                }
+
+                if (!players.ContainsKey(player.ID) || players[player.ID].leave == null)
+                {
+                    args.Player.SendErrorMessage("This player doesn't have a leaving announcement!");
+                    return;
+                }
+
+                args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].leave), players[player.ID].leaveRGB);
                 return;
             }
 
@@ -372,7 +424,7 @@ namespace OnlineAnnounce
                     return;
                 }
 
-                if (player.Name != args.Player.UserAccountName && !args.Player.Group.HasPermission("oa.mod"))
+                if (player.Name != args.Player.User.Name && !args.Player.Group.HasPermission("oa.mod"))
                 {
                     args.Player.SendErrorMessage("You do not have permission to remove other players' leaving announcement.");
                     return;
@@ -385,7 +437,7 @@ namespace OnlineAnnounce
                 }
 
                 removeAnnounce(false, player.ID);
-                args.Player.SendSuccessMessage("{0} leaving announcement has been removed.", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendSuccessMessage("{0} leaving announcement has been removed.", (player.Name == args.Player.User.Name ? "Your" : (player.Name + "'s")));
 
                 return;
             }
@@ -426,7 +478,7 @@ namespace OnlineAnnounce
                 }
 
                 setColor(false, player.ID, color);
-                args.Player.SendSuccessMessage("{0} leaving announcement has been set to:", (player.Name == args.Player.UserAccountName ? "Your" : (player.Name + "'s")));
+                args.Player.SendSuccessMessage("{0} leaving announcement has been set to:", (player.Name == args.Player.User.Name ? "Your" : (player.Name + "'s")));
                 args.Player.SendMessage(string.Format("[{0}] {1}", player.Name, players[player.ID].leave), players[player.ID].leaveRGB);
 
                 return;
