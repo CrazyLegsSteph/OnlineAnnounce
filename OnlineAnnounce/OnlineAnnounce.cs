@@ -78,7 +78,7 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(4, 3, 3, 1); } }
+        public override Version Version { get { return new Version(4, 3, 4, 0); } }
 
         private static IDbConnection db;
         public static Config config = new Config();
