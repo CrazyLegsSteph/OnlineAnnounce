@@ -72,13 +72,13 @@ namespace OnlineAnnounce
         }
     }
 
-    [ApiVersion(1, 17)]
+    [ApiVersion(1, 19)]
     public class OnlineAnnounce : TerrariaPlugin
     {
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(4, 3, 4, 0); } }
+        public override Version Version { get { return new Version(4, 3, 5, 0); } }
 
         private static IDbConnection db;
         public static Config config = new Config();
@@ -205,6 +205,7 @@ namespace OnlineAnnounce
         #region Greet commands
         private void UGreet(CommandArgs args)
         {
+            //greet set <params>
             if (args.Parameters.Count > 2 && args.Parameters[0].ToLower() == "set")
             {
                 TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
@@ -244,6 +245,7 @@ namespace OnlineAnnounce
                 return;
             }
 
+            //greet read <player>
             if (args.Parameters.Count == 2 && args.Parameters[0].ToLower() == "read")
             {
                 TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
@@ -270,6 +272,7 @@ namespace OnlineAnnounce
                 return;
             }
 
+            //greet remove <player>
             if (args.Parameters.Count == 2 && args.Parameters[0].ToLower() == "remove")
             {
                 TShockAPI.DB.User player = TShock.Users.GetUserByName(args.Parameters[1]);
@@ -298,6 +301,7 @@ namespace OnlineAnnounce
                 return;
             }
 
+            //greet color <player> <rgb>
             if (args.Parameters.Count > 2 && args.Parameters[0].ToLower() == "color")
             {
                 if (!args.Player.Group.HasPermission("oa.mod"))
@@ -344,7 +348,10 @@ namespace OnlineAnnounce
             args.Player.SendErrorMessage("{0}greet set <player> <announcement>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
             args.Player.SendErrorMessage("{0}greet remove <player>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
             if (args.Player.Group.HasPermission("oa.mod"))
+            {
                 args.Player.SendErrorMessage("{0}greet color <player> <rgb>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
+                args.Player.SendErrorMessage("{0}greet read <player>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
+            }
         }
 
         private void ULeave(CommandArgs args)
@@ -488,7 +495,10 @@ namespace OnlineAnnounce
             args.Player.SendErrorMessage("{0}leave set <player> <announcement>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
             args.Player.SendErrorMessage("{0}leave remove <player>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
             if (args.Player.Group.HasPermission("oa.mod"))
+            {
                 args.Player.SendErrorMessage("{0}leave color <player> <rgb>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
+                args.Player.SendErrorMessage("{0}leave read <player>", (args.Silent ? TShock.Config.CommandSilentSpecifier : TShock.Config.CommandSpecifier));
+            }
         }
 
         private void UPurge(CommandArgs args)
