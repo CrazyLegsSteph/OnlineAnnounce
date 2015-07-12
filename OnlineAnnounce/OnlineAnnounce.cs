@@ -78,7 +78,7 @@ namespace OnlineAnnounce
         public override string Name { get { return "OnlineAnnounce"; } }
         public override string Author { get { return "Zaicon"; } }
         public override string Description { get { return "Broadcasts an custom announcement upon player join/leave."; } }
-        public override Version Version { get { return new Version(4, 3, 5, 0); } }
+        public override Version Version { get { return new Version(4, 3, 5, 1); } }
 
         private static IDbConnection db;
         public static Config config = new Config();
@@ -133,6 +133,9 @@ namespace OnlineAnnounce
         private void OnGreet(GreetPlayerEventArgs args)
         {
             if (TShock.Players[args.Who] == null)
+                return;
+
+            if (!TShock.Players[args.Who].IsLoggedIn)
                 return;
 
             int id = TShock.Players[args.Who].User.ID;
@@ -586,7 +589,7 @@ namespace OnlineAnnounce
                     break;
 
                 case "sqlite":
-                    string sql = Path.Combine(TShock.SavePath, "tshock.sqlite");
+                    string sql = Path.Combine(TShock.SavePath, "OnlineAnnounce.sqlite");
                     db = new SqliteConnection(string.Format("uri=file://{0},Version=3", sql));
                     break;
 
